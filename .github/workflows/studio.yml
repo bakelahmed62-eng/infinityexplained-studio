@@ -1,0 +1,29 @@
+name: studio
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          pip install pillow piper-tts
+      - name: Narration and render
+        run: |
+          mkdir -p out
+          echo 'You only use ten percent of your brain. False. Brain scans show activity across the whole brain, even during sleep. Different tasks light up different regions, and over a single day you use nearly all of it. Myth busted.' > narration.txt
+          BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium
+          curl -fL -o voice.onnx $BASE/en_US-lessac-medium.onnx || true
+          curl -fL -o voice.onnx.json $BASE/en_US-lessac-medium.onnx.json || true
+          piper --model voice.onnx --output_file out/voice.wav < narration.txt || espeak-ng -s 145 -w out/voice.wav -f narration.txt
+          python render.py out/voice.wav out/short.mp4
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-short
+          name: Latest Short
+          files: out/short.mp4
