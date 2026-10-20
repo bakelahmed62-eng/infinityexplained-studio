@@ -1,0 +1,31 @@
+name: negativity
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          pip install pillow piper-tts
+      - name: Narration and render
+        run: |
+          mkdir -p out
+          echo 'Why do bad moments stay with you? Psychologists call it the negativity bias. Research suggests negative events tend to grab more attention, and stick in memory longer, than equally strong positive ones. Replaying them keeps the memory fresh. Here is a simple counterweight: name one thing that went well today. Notice the good, on purpose.' > narration.txt
+          BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium
+          curl -fL -o voice.onnx $BASE/en_US-lessac-medium.onnx || true
+          curl -fL -o voice.onnx.json $BASE/en_US-lessac-medium.onnx.json || true
+          if piper --model voice.onnx --output_file out/voice.wav < narration.txt; then echo piper > engine.txt; else espeak-ng -s 145 -w out/voice.wav -f narration.txt; echo espeak > engine.txt; fi
+          python render2.py out/voice.wav out/negativity.mp4
+          ffprobe -v error -show_entries format=duration -of csv=p=0 out/negativity.mp4 > duration.txt
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: negativity-short
+          name: Negativity Short
+          body_path: engine.txt
+          files: out/negativity.mp4
