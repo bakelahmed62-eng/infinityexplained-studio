@@ -1,0 +1,35 @@
+name: series1
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          pip install pillow piper-tts
+      - name: Voice, narration and render
+        run: |
+          mkdir -p out
+          python s1/series.py narr
+          BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US
+          V=ryan
+          curl -fL -o voice.onnx $BASE/ryan/medium/en_US-ryan-medium.onnx && curl -fL -o voice.onnx.json $BASE/ryan/medium/en_US-ryan-medium.onnx.json || { V=joe; curl -fL -o voice.onnx $BASE/joe/medium/en_US-joe-medium.onnx; curl -fL -o voice.onnx.json $BASE/joe/medium/en_US-joe-medium.onnx.json; } || true
+          ENGINE=espeak
+          for N in 01 02 03 04 05 06 07 08 09 10; do
+            if piper --model voice.onnx --output_file out/v$N.wav < out/narr_$N.txt; then ENGINE=piper-$V; else espeak-ng -s 150 -w out/v$N.wav -f out/narr_$N.txt; fi
+            python s1/series.py render $((10#$N)) out/v$N.wav out/ep$((10#$N)).mp4
+          done
+          echo $ENGINE > engine.txt
+          rm out/v*.wav
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: series-1
+          name: Series 1
+          body_path: engine.txt
+          files: out/ep*.mp4
