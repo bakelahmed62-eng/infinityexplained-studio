@@ -1,0 +1,31 @@
+name: motivation3
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          pip install pillow piper-tts
+      - name: Voice and render
+        run: |
+          mkdir -p out
+          python m3/motivation3.py narr
+          BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US
+          V=ryan
+          curl -fL -o voice.onnx $BASE/ryan/medium/en_US-ryan-medium.onnx && curl -fL -o voice.onnx.json $BASE/ryan/medium/en_US-ryan-medium.onnx.json || { V=joe; curl -fL -o voice.onnx $BASE/joe/medium/en_US-joe-medium.onnx; curl -fL -o voice.onnx.json $BASE/joe/medium/en_US-joe-medium.onnx.json; } || true
+          if piper --model voice.onnx --output_file out/voice.wav < narration.txt; then echo piper-$V > engine.txt; else espeak-ng -s 150 -w out/voice.wav -f narration.txt; echo espeak > engine.txt; fi
+          python m3/motivation3.py render out/voice.wav out/motivation3.mp4
+          rm out/voice.wav
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: motivation-3
+          name: Motivation 3
+          body_path: engine.txt
+          files: out/motivation3.mp4
