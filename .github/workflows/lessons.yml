@@ -1,0 +1,35 @@
+name: lessons
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          pip install pillow piper-tts
+      - name: Voice and render
+        run: |
+          mkdir -p out
+          python l1/lessons.py narr
+          BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US
+          V=ryan
+          curl -fL -o voice.onnx $BASE/ryan/medium/en_US-ryan-medium.onnx && curl -fL -o voice.onnx.json $BASE/ryan/medium/en_US-ryan-medium.onnx.json || { V=joe; curl -fL -o voice.onnx $BASE/joe/medium/en_US-joe-medium.onnx; curl -fL -o voice.onnx.json $BASE/joe/medium/en_US-joe-medium.onnx.json; } || true
+          ENGINE=espeak
+          for N in 2 3 4 5 6 7 8 9 10; do
+            if piper --model voice.onnx --output_file out/v$N.wav < out/narr_$N.txt; then ENGINE=piper-$V; else espeak-ng -s 150 -w out/v$N.wav -f out/narr_$N.txt; fi
+          done
+          echo $ENGINE > engine.txt
+          seq 2 10 | xargs -P 4 -I N sh -c 'python l1/lessons.py render N out/vN.wav out/lessonN.mp4'
+          rm out/v*.wav
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: lessons-1
+          name: Lessons 2 to 10
+          body_path: engine.txt
+          files: out/lesson*.mp4
