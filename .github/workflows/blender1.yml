@@ -1,0 +1,25 @@
+name: blender1
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y blender
+          blender --version | head -1 > engine.txt
+      - name: Render test
+        run: |
+          mkdir -p out
+          blender -b -P b1/test.py
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: blender-test-1
+          name: Blender test 1
+          body_path: engine.txt
+          files: out/blender_test.png
