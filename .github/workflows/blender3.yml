@@ -1,0 +1,29 @@
+name: blender3
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y blender
+          echo 'install ok' > engine.txt
+          blender --version 2>&1 | head -1 >> engine.txt
+      - name: Render test
+        run: |
+          mkdir -p out
+          blender -b -P b1/test2.py > blender_log.txt 2>&1 || echo 'render failed' >> engine.txt
+          tail -15 blender_log.txt >> engine.txt
+          ls -la out >> engine.txt
+      - name: Publish release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: blender-test-3
+          name: Blender test 3
+          body_path: engine.txt
+          files: out/blender_test.png
