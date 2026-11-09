@@ -1,0 +1,36 @@
+name: fast1
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core libraqm0 libfribidi0
+          pip install pillow piper-tts arabic-reshaper python-bidi
+          mkdir -p out
+          echo install-ok > engine.txt
+      - name: Voice and render
+        run: |
+          python n1/fast.py narr
+          BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US
+          V=ryan
+          curl -fL -o voice.onnx $BASE/ryan/medium/en_US-ryan-medium.onnx && curl -fL -o voice.onnx.json $BASE/ryan/medium/en_US-ryan-medium.onnx.json || { V=joe; curl -fL -o voice.onnx $BASE/joe/medium/en_US-joe-medium.onnx; curl -fL -o voice.onnx.json $BASE/joe/medium/en_US-joe-medium.onnx.json; } || true
+          for K in imp wander names; do
+            if piper --model voice.onnx --output_file out/v$K.wav < out/narr_$K.txt; then echo piper-$V >> engine.txt; else espeak-ng -s 150 -w out/v$K.wav -f out/narr_$K.txt; echo espeak >> engine.txt; fi
+          done
+          printf 'imp\nwander\nnames\n' | xargs -P 3 -I K sh -c 'python n1/fast.py render K out/vK.wav out/shortK.mp4'
+          python -c 'from PIL import features; print(features.check(chr(114)+chr(97)+chr(113)+chr(109)))' >> engine.txt
+          rm -f out/v*.wav
+      - name: Publish release
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: fast-1
+          name: Fast 1
+          body_path: engine.txt
+          files: out/short*.mp4
